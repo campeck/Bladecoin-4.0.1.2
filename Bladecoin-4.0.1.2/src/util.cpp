@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2016-2018 The CryptoCoderz Team / Affiliates
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -8,7 +9,14 @@
 #include "strlcpy.h"
 #include "version.h"
 #include "ui_interface.h"
+
+#include <algorithm>
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 #include <boost/algorithm/string/join.hpp>
+#include <boost/algorithm/string/predicate.hpp> // for startswith() and endswith()
 
 // Work around clang compilation problem in Boost 1.46:
 // /usr/include/boost/program_options/detail/config_file.hpp:163:17: error: call to function 'to_internal' that is neither visible in the template definition nor found by argument-dependent lookup
@@ -61,6 +69,11 @@ namespace boost {
 
 
 using namespace std;
+
+static const char alphanum[] =
+      "0123456789"
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+      "abcdefghijklmnopqrstuvwxyz";
 
 map<string, string> mapArgs;
 map<string, vector<string> > mapMultiArgs;
@@ -1076,13 +1089,58 @@ boost::filesystem::path GetConfigFile()
     if (!pathConfigFile.is_complete()) pathConfigFile = GetDataDir(false) / pathConfigFile;
     return pathConfigFile;
 }
-
+//
+// Make Blade.conf and input parameters.
+//
 void ReadConfigFile(map<string, string>& mapSettingsRet,
                     map<string, vector<string> >& mapMultiSettingsRet)
 {
+    int confLoop = 0;
+    injectConfig:
     boost::filesystem::ifstream streamConfig(GetConfigFile());
     if (!streamConfig.good())
-        return; // No bitcoin.conf file is OK
+    {
+        boost::filesystem::path ConfPath;
+               ConfPath = GetDataDir() / "Blade.conf";
+               FILE* ConfFile = fopen(ConfPath.string().c_str(), "w");
+               fprintf(ConfFile, "listen=1\n");
+               fprintf(ConfFile, "server=1\n");
+               fprintf(ConfFile, "maxconnections=500\n");
+               fprintf(ConfFile, "rpcuser=yourusername\n");
+
+               char s[34];
+               for (int i = 0; i < 34; ++i)
+               {
+                   s[i] = alphanum[rand() % (sizeof(alphanum) - 1)];
+               }
+
+               std::string str(s, 34);
+               std::string rpcpass = "rpcpassword=" + str + "\n";
+               fprintf(ConfFile, rpcpass.c_str());
+               fprintf(ConfFile, "port=45555\n");
+               fprintf(ConfFile, "rpcport=45557\n");
+               fprintf(ConfFile, "rpcconnect=127.0.0.1\n");
+               fprintf(ConfFile, "rpcallowip=localhost\n");
+               fprintf(ConfFile, "rpcallowip=192.168.1.*\n");
+               fprintf(ConfFile, "gen=0\n");
+               fprintf(ConfFile, "noirc=1\n");
+               fprintf(ConfFile, "addnode=98.180.124.103\n");
+               fprintf(ConfFile, "addnode=67.191.204.133\n");
+               fprintf(ConfFile, "addnode=71.199.183.206\n");
+               fprintf(ConfFile, "addnode=98.242.88.196\n");
+
+               fclose(ConfFile);
+
+               // Returns our config path, created config file is loaded during initial run...
+               return ;
+    }
+
+    // Wallet will reload config file so it is properly read...
+    if (confLoop < 1)
+    {
+        ++confLoop;
+        goto injectConfig;
+    }
 
     set<string> setOptions;
     setOptions.insert("*");
